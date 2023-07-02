@@ -68,6 +68,6 @@ python main.py
 
 # 运行截图
 
-![RunScreenshot1](.\img\RunScreenshot1.png)
+![RunScreenshot1](./img/RunScreenshot1.png)
 
-![RunScreenshot1](.\img\RunScreenshot2.png)
+![RunScreenshot1](./img/RunScreenshot2.png)
