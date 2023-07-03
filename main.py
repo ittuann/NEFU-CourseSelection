@@ -23,7 +23,7 @@ website = input("请输入选课页面的网址")
 select_names = []
 
 
-# 浏览器驱动配置，这里使用的是Chrome，使用时要注意浏览器驱动是否下载
+# 使用 Chrome
 chrome_options = Options()
 chrome_options.add_argument('--headless')   # 无头模式
 
@@ -42,13 +42,14 @@ def login():
             sleep(2)  # 登录成功延时2s
 
             # 继续登录教务系统
+            driver.get('https://jwcnew.webvpn.nefu.edu.cn/dblydx_jsxsd/xk/AccessToXk')  # 防止高负载下没有跳转
             driver.find_element_by_xpath('//*[@id="Form1"]/div/div/div[2]/div[1]/div[2]/input[1]').send_keys(
                 str(student_id))
             driver.find_element_by_xpath('//*[@id="pwd"]').send_keys(str(student_pwd))
             driver.find_element_by_xpath('//*[@id="btnSubmit"]').click()
 
         else:
-            driver.get('https://jwcnew.nefu.edu.cn/dblydx_jsxsd/')  # 仅在本学校有效
+            driver.get('https://jwcnew.nefu.edu.cn/dblydx_jsxsd/')  # 仅在学校内校园网有效
             driver.find_element_by_xpath('//*[@id="Form1"]/div/div/div[2]/div[1]/div[2]/input[1]').send_keys(
                 str(student_id))
             driver.find_element_by_xpath('//*[@id="pwd"]').send_keys(str(student_pwd))
@@ -94,7 +95,7 @@ def select_course(web_page, select_name):
             alert = driver.switch_to.alert
             alert.accept()
 
-            wait = WebDriverWait(driver, timeout=time_out)      # 显式等待下一个alert弹出的时间 频率为0.5s
+            wait = WebDriverWait(driver, timeout=time_out)      # 显式等待下一个alert弹出 频率为0.5s
             alert = None
             while alert is None:
                 try:
