@@ -15,13 +15,15 @@ from datetime import datetime
 import threading
 
 driver_path = r"C:\Download\chromedriver_win32\chromedriver.exe"
-time_out = 30                               # 教务系统选课时最长无响应等待时间
-sleep_time = 2                              # 登录成功后延时等待时间
-url_max_attempts = 100                      # 页面加载失败后最大尝试次数
+time_out = 30                                   # 教务系统选课时最长无响应等待时间
+sleep_time = 2                                  # 登录成功后延时等待时间
+url_max_attempts = 100                          # 页面加载失败后最大尝试次数
 
 # 使用 Chrome
 chrome_options = Options()
-chrome_options.add_argument('--headless')   # 无头模式
+chrome_options.add_argument('--headless')       # 无头模式
+# chrome_options.add_argument('--disable-gpu')    # 禁用GPU加速
+chrome_options.add_argument('--blink-settings=imagesEnabled=false')  # 禁用图片加载
 
 
 def continue_driver_get(driver, url, max_attempts):
@@ -36,10 +38,22 @@ def continue_driver_get(driver, url, max_attempts):
             if attempt < max_attempts:
                 print(f"正在尝试重新加载网页 {url} 尝试次数: {attempt}/{max_attempts}")
             else:
-                print(f"达到最大尝试次数{max_attempts}次，停止加载网页。")
+                print(f"达到最大尝试次数 {max_attempts} 次，停止加载网页。")
         finally:
             if attempt >= max_attempts:
                 driver.quit()
+
+
+def continue_driver_find_element_by_xpath(driver, xpath, send_key, reload_url):
+    while True:
+        try:
+            driver.find_element_by_xpath(xpath).send_keys(send_key)
+            break
+        except Exception as err:
+            # 防止高负载下教务系统网页返回不全导致无法登录
+            print("登录出现网页时错误:", str(err))
+            continue_driver_get(driver, reload_url, url_max_attempts)
+            continue
 
 
 def login():
@@ -48,29 +62,31 @@ def login():
     # 登录WebVPN
     if is_webvpn:
         continue_driver_get(driver, 'https://jwcnew.webvpn.nefu.edu.cn/dblydx_jsxsd/xk/AccessToXk', url_max_attempts)
-        driver.find_element_by_xpath('//*[@id="un"]').send_keys(str(student_id))
+
+        continue_driver_find_element_by_xpath(driver, '//*[@id="un"]', str(student_id),
+                                              'https://jwcnew.webvpn.nefu.edu.cn/dblydx_jsxsd/xk/AccessToXk')
         driver.find_element_by_xpath('//*[@id="pd"]').send_keys(str(student_pwd))
         driver.find_element_by_xpath('//*[@id="rememberName"]').click()
         driver.find_element_by_xpath('//*[@id="index_login_btn"]/input').click()
         sleep(sleep_time)   # 登录成功后延时等待
 
         # 继续登录教务系统
-        continue_driver_get(driver, 'https://jwcnew.webvpn.nefu.edu.cn/dblydx_jsxsd/xk/AccessToXk', url_max_attempts)  # 防止高负载下没有跳转
-        driver.find_element_by_xpath('//*[@id="Form1"]/div/div/div[2]/div[1]/div[2]/input[1]').send_keys(
-            str(student_id))
+        continue_driver_find_element_by_xpath(driver, '//*[@id="Form1"]/div/div/div[2]/div[1]/div[2]/input[1]', str(student_id),
+                                              'https://jwcnew.webvpn.nefu.edu.cn/dblydx_jsxsd/xk/AccessToXk')
         driver.find_element_by_xpath('//*[@id="pwd"]').send_keys(str(student_pwd))
         driver.find_element_by_xpath('//*[@id="btnSubmit"]').click()
 
     else:
-        continue_driver_get(driver, 'https://jwcnew.nefu.edu.cn/dblydx_jsxsd/', url_max_attempts)                       # 仅在学校内校园网有效
-        driver.find_element_by_xpath('//*[@id="Form1"]/div/div/div[2]/div[1]/div[2]/input[1]').send_keys(
-            str(student_id))
+        # 校园网内网登录
+        continue_driver_get(driver, 'http://jwcnew.nefu.edu.cn/dblydx_jsxsd/', url_max_attempts)    # 不用https
+
+        continue_driver_find_element_by_xpath(driver, '//*[@id="Form1"]/div/div/div[2]/div[1]/div[2]/input[1]', str(student_id),
+                                              'http://jwcnew.nefu.edu.cn/dblydx_jsxsd/')
         driver.find_element_by_xpath('//*[@id="pwd"]').send_keys(str(student_pwd))
         driver.find_element_by_xpath('//*[@id="btnSubmit"]').click()
 
     print("登录成功！ %s" % datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3])
     sleep(sleep_time)       # 登录成功后延时等待
-
     return driver
 
 
@@ -81,7 +97,15 @@ def select_course(web_page, select_name, info):
     continue_driver_get(driver, web_page, url_max_attempts)
 
     # 获取全部课程名称
-    element = driver.find_element_by_css_selector('#divFrmLeft')
+    while True:
+        try:
+            element = driver.find_element_by_css_selector('#divFrmLeft')
+            break
+        except Exception as err:
+            # 防止高负载下教务系统网页返回不全导致无法登录
+            print("获取全部课程名称时出现错误:", str(err))
+            continue_driver_get(driver, web_page, url_max_attempts)
+            continue
     tr = element.find_elements_by_xpath("//tr[contains(@id,'xk')]")
     id_list = []
     course_list = []
@@ -161,16 +185,12 @@ if __name__ == '__main__':
     select_names = []
     course_thread_count = int(input("请输入抢每门课程要同时并发的线程数量:"))
 
-    webvpn_input = input("请输入是否使用校园外网WebVPN（True/False）:").lower()
+    webvpn_input = input("请输入是否使用校园外网WebVPN (True/False):").lower()
     if webvpn_input == "false":
         is_webvpn = False
     else:
         is_webvpn = True
-    while True:
-        name = input("请输入课程名称 （名称打完后按回车完成输入，直接输入回车结束输入）:")
-        if name == "":
-            break
-        select_names.append(name)
+    select_names = input("请输入课程名称 (多个课程名称之间用空格分隔):").split()
     if course_thread_count <= 1:
         course_thread_count = 1
 
