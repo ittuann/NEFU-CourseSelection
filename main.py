@@ -15,8 +15,9 @@ from datetime import datetime
 import threading
 
 driver_path = r"C:\Download\chromedriver_win32\chromedriver.exe"
-time_out = 60
-url_max_attempts = 3
+time_out = 30                               # 教务系统选课时最长无响应等待时间
+sleep_time = 2                              # 登录成功后延时等待时间
+url_max_attempts = 100                      # 页面加载失败后最大尝试次数
 
 # 使用 Chrome
 chrome_options = Options()
@@ -42,7 +43,6 @@ def continue_driver_get(driver, url, max_attempts):
 
 
 def login():
-
     driver = webdriver.Chrome(executable_path=driver_path, options=chrome_options)
 
     # 登录WebVPN
@@ -52,7 +52,7 @@ def login():
         driver.find_element_by_xpath('//*[@id="pd"]').send_keys(str(student_pwd))
         driver.find_element_by_xpath('//*[@id="rememberName"]').click()
         driver.find_element_by_xpath('//*[@id="index_login_btn"]/input').click()
-        sleep(2)  # 登录成功延时2s
+        sleep(sleep_time)   # 登录成功后延时等待
 
         # 继续登录教务系统
         continue_driver_get(driver, 'https://jwcnew.webvpn.nefu.edu.cn/dblydx_jsxsd/xk/AccessToXk', url_max_attempts)  # 防止高负载下没有跳转
@@ -69,16 +69,18 @@ def login():
         driver.find_element_by_xpath('//*[@id="btnSubmit"]').click()
 
     print("登录成功！ %s" % datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3])
-    sleep(2)  # 登录成功延时2s
+    sleep(sleep_time)       # 登录成功后延时等待
 
     return driver
 
 
 def select_course(web_page, select_name, info):
     print("脚本开始运行！")
-    # 获取全部课程名称
+
     driver = login()
     continue_driver_get(driver, web_page, url_max_attempts)
+
+    # 获取全部课程名称
     element = driver.find_element_by_css_selector('#divFrmLeft')
     tr = element.find_elements_by_xpath("//tr[contains(@id,'xk')]")
     id_list = []
@@ -95,7 +97,7 @@ def select_course(web_page, select_name, info):
     if select_name in name_id_dict:
         print("查询成功！正在选 %s 这门课 %s" % (select_name, datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]))
     else:
-        print("查询失败,请确认该页面是否有该课程")
+        print("查询失败，请确认该页面是否有该课程。")
         return
 
     # 开始抢课
@@ -120,12 +122,12 @@ def select_course(web_page, select_name, info):
             if alert.text == '选课成功！':
                 print(alert.text)
                 break
-            msg = "课程'{}'的第{}线程的第{}次尝试: {} {}".format(
+            msg = "课程\"{}\"第{}线程的第{}次尝试: {} {}".format(
                 select_name,
                 info,
                 attempt,
                 alert.text,
-                datetime.now().strftime("%d %H:%M:%S.%f")[:-3]
+                datetime.now().strftime("%d-%H:%M:%S.%f")[:-3]
             )
             print(msg)
             alert.accept()
@@ -154,21 +156,21 @@ if __name__ == '__main__':
     # 处理输入
     student_id = input("请输入学号:")
     student_pwd = input("请输入密码:")
+    is_webvpn = True
     website = input("请输入选课页面的网址:")
     select_names = []
-    is_webvpn = True
     course_thread_count = int(input("请输入抢每门课程要同时并发的线程数量:"))
 
-    while True:
-        name = input("请输入课程名称 （名称打完后按回车完成输入，直接输入回车结束输入）:")
-        if name == "":
-            break
-        select_names.append(name)
     webvpn_input = input("请输入是否使用校园外网WebVPN（True/False）:").lower()
     if webvpn_input == "false":
         is_webvpn = False
     else:
         is_webvpn = True
+    while True:
+        name = input("请输入课程名称 （名称打完后按回车完成输入，直接输入回车结束输入）:")
+        if name == "":
+            break
+        select_names.append(name)
     if course_thread_count <= 1:
         course_thread_count = 1
 
